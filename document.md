@@ -2,6 +2,8 @@
 
 ライフログ音声解析・QAシステム「EchoMind」のiPhoneアプリ(クライアント)の実装である．サーバー側の実装と仕様は[EchoMindServer](https://github.com/yryo1005/EchoMindServer)の`仕様書.md`，`document.md`，`programs/server/README.md`に記載されている．本アプリは，日常の音声を常時録音してWi-Fi接続中かつ充電中にサーバーへ送信する機能と，過去の会話への質問(QA)・会話の閲覧・話者名の設定を行う機能を持つ．
 
+アプリの機能の一覧と使い始めるまでの手順は[README.md](README.md)にまとめている．Step 0〜6と検証用のログまでを実装した現在のプログラムをV1(バージョン1.0，ビルド1)とする．
+
 ## 実装の進捗
 
 実装は以下のステップで進める．
@@ -60,6 +62,7 @@
   - `Assets.xcassets/`: アプリのアセット．
 - `EchoMindClient-Info.plist`: Xcodeが自動生成するInfo.plistに追加で統合する設定．バックグラウンドモード(`audio`，`processing`)，BGTaskの識別子(`<Bundle Identifier>.upload`)，ローカルネットワークへのHTTP接続の許可(`NSAllowsLocalNetworking`)を記述する．フォルダ同期の対象外に置くことで，リソースとして重複してコピーされることを防いでいる．
 - `EchoMindClient.xcodeproj/project.xcproj`: Xcode 27のテキスト形式のプロジェクトファイル．対象はiPhone(`SUPPORTED_PLATFORMS = iphoneos iphonesimulator`，`TARGETED_DEVICE_FAMILY = 1`)，iOS 27.2以降である．マイク使用許可の説明文(`NSMicrophoneUsageDescription`)はビルド設定`INFOPLIST_KEY_NSMicrophoneUsageDescription`で指定する．
+- `README.md`: V1の機能，動作環境，使い始めるまでの手順，データの保存場所，既知の制約．
 - `.orders/`: 作業指示の記録．
 - `.reports/`: 作業レポート．`figures/`にレポートで参照する画像を置く．
 - `.ai/`: AIエージェント・開発規約のサブモジュール群．
