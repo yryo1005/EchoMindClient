@@ -15,7 +15,7 @@
 | 4 | 常時録音(1時間ごとのファイル分割，中断からの復帰，Bluetooth機器の接続中も本体のマイクで継続) | 完了 |
 | 5 | 条件付き自動アップロード，手動での送信，処理完了後の削除 | 完了 |
 | 6 | 状態表示・設定画面の拡充(状態の一覧，自動送信の条件の設定，録音タブのバッジ，人物名の編集の導線) | 完了(人物名の編集の導線は実機での確認待ち) |
-| 7 | 実機での長時間検証 | 未着手 |
+| 7 | 実機での長時間検証(検証用の録音・送信のログを実装済み) | 準備中 |
 
 ## ディレクトリ構成
 
@@ -38,6 +38,8 @@
   - `Services/RecordingFileWriter.swift`: マイクの音声を16kHzモノラル，32kbpsのAAC(ADTS)に変換して書き込み，1時間ごとにファイルを切り替える．録音が止まる際は必ずファイルを区切る(ファイルの途中に録音の空白を含めないため)．
   - `Services/RecordingStorage.swift`: 録音ファイルの保存先(Application Support/Recordings，バックアップ対象外)とファイル名の規則(`rec_<開始時刻UTC>_<ID>.aac`)，保存先の空き容量の取得．
   - `Services/LocalNotifier.swift`: 録音が停止したことを知らせるローカル通知．
+  - `Services/EventLog.swift`: 録音と送信の経過のログ．録音の開始・停止・中断，録音ファイルの区切り(区間，サイズ，バッテリー残量)，送信の結果，Wi-Fi・充電の変化，アプリの起動と前面・バックグラウンドの切り替えを，JSON Lines形式で`Application Support/Logs/events.jsonl`に追記する．14日より古い記録は起動時に削除する．
+  - `Services/RecordingTimeline.swift`: ログの録音ファイルの区切りから，期間内の録音時間，録音の空白(5秒を超える隙間)とその間の出来事，バッテリー残量の推移を集計する．
   - `Services/UploadManager.swift`: 録音ファイルの送信．Wi-Fiに接続し，かつ充電中の場合に自動で，`sendNow()`では条件に関わらず送信する．録音開始時刻の古い順に1件ずつ送信し，処理状況をポーリングして`safe_to_delete_client_copy`が`true`になったファイルを削除する．`failed`は待ち時間を倍にしながら5回まで再送し，404と1時間を超える処理中は送り直す．通信の失敗は失敗の回数に数えない．ログアウトの前に未送信の録音をすべて削除する処理(`discardAllRecordings()`)も持つ．自動送信の条件(Wi-Fi接続時のみ，充電中のみ)の設定と，最後に送信が完了した日時をUserDefaultsに保存する．
   - `Services/BrowseAPI.swift`: 会話一覧(20件ずつ)・会話詳細・人物一覧・名前の設定・発言音声の取得．質問の参照日時を含む会話を，会話一覧を新しい順にたどって探す処理(`conversation(containing:)`)を持つ．
   - `Services/AudioClipPlayer.swift`: 発言の音声を認証付きでダウンロードし，`AVAudioPlayer`で再生する．取得した音声は画面を開いている間メモリに保持する．
@@ -52,8 +54,9 @@
   - `Features/Recording/RecordingView.swift`: 録音タブ．常時録音の切り替え，録音の状態と経過時間，送信の条件(Wi-Fi，充電)と状況，「今すぐ送信」ボタン，保存した録音ファイルの一覧(送信の状況，再生，手動での削除)．
   - `Features/Recording/RecordingStatusLabel.swift`: 常時録音の状態のラベル(録音中は経過時間を表示)．録音タブと設定画面で共用する．
   - `Features/Recording/UploadConditionRows.swift`: 自動送信の条件(Wi-Fi，充電)の現在の状態の行．条件から外した項目には「条件外」と添える．録音タブと設定画面で共用する．
+  - `Features/Logs/EventLogView.swift`: ログの画面(設定画面から開く)．期間(24時間，3日，7日)ごとの録音の集計と録音の空白，種類で絞り込んだログの一覧を表示し，ログのファイルを書き出せる．
   - `Features/Auth/LoginView.swift`: ログイン・アカウント登録画面．サーバーURLが未設定の場合は設定画面への導線を表示する．
-  - `Features/Settings/SettingsView.swift`: 設定画面．ログイン済みの場合は，状態の一覧(録音の状態，未送信の録音の件数と容量，最後の送信の完了，送信の状況，端末の空き容量)，常時録音の切り替え，自動送信の条件の設定，アカウントの表示とログアウトを表示する．サーバーURLの入力と疎通確認，アプリのバージョンも表示する．未送信の録音があるか常時録音が有効な場合は，ログアウトの前に警告し，録音を停止してすべて送信するか，録音を削除してログアウトするかを選ばせる(アカウント間で録音が混ざらないようにするため)．
+  - `Features/Settings/SettingsView.swift`: 設定画面．ログイン済みの場合は，状態の一覧(録音の状態，未送信の録音の件数と容量，最後の送信の完了，送信の状況，端末の空き容量，ログの画面への移動)，常時録音の切り替え，自動送信の条件の設定，アカウントの表示とログアウトを表示する．サーバーURLの入力と疎通確認，アプリのバージョンも表示する．未送信の録音があるか常時録音が有効な場合は，ログアウトの前に警告し，録音を停止してすべて送信するか，録音を削除してログアウトするかを選ばせる(アカウント間で録音が混ざらないようにするため)．
   - `Assets.xcassets/`: アプリのアセット．
 - `EchoMindClient-Info.plist`: Xcodeが自動生成するInfo.plistに追加で統合する設定．バックグラウンドモード(`audio`，`processing`)，BGTaskの識別子(`<Bundle Identifier>.upload`)，ローカルネットワークへのHTTP接続の許可(`NSAllowsLocalNetworking`)を記述する．フォルダ同期の対象外に置くことで，リソースとして重複してコピーされることを防いでいる．
 - `EchoMindClient.xcodeproj/project.xcproj`: Xcode 27のテキスト形式のプロジェクトファイル．対象はiPhone(`SUPPORTED_PLATFORMS = iphoneos iphonesimulator`，`TARGETED_DEVICE_FAMILY = 1`)，iOS 27.2以降である．マイク使用許可の説明文(`NSMicrophoneUsageDescription`)はビルド設定`INFOPLIST_KEY_NSMicrophoneUsageDescription`で指定する．
@@ -84,6 +87,7 @@ AudioRecorder ──┬─> AudioSessionManager (.playAndRecord)
                 ├─(ファイルの区切り)─> SwiftData (RecordingFile) ──> UploadManager.recordingsDidChange
                 ├─(経路の変化)─> AudioSessionManager.preferBuiltInMic / isBuiltInMicInUse ──> 書き込みの一時停止・再開
                 └─(再開できない場合)─> LocalNotifier
+AudioRecorder，UploadManager，MyApp ──> EventLog (events.jsonl) <── EventLogView ──> RecordingTimeline (集計)
 UploadManager ──┬─> NWPathMonitor (Wi-Fi)，UIDevice (充電)，BGTaskScheduler
                 ├─> APIClient.upload ──> POST /api/upload (multipart)
                 ├─> APIClient.send ──> GET /api/upload/{id}/status
@@ -131,10 +135,21 @@ xcodebuild -project EchoMindClient.xcodeproj -scheme EchoMindClient \
 
 アプリを起動したら，ログイン画面右上の歯車ボタンから設定画面を開き，サーバーURL(例: `https://<サブドメイン>.<ドメイン>`)を入力して「接続を確認」で疎通を確認する．その後，ログイン画面でアカウントを登録またはログインする．同じLAN内のサーバーにHTTPで接続する場合は`http://<IPアドレス>:8000`を入力する(IPアドレスやローカルネットワークへのHTTP接続はApp Transport Securityの例外として許可している)．実機から接続する場合は`localhost`ではなくMacのIPアドレスを指定し，サーバーを`--host 0.0.0.0`で起動する．初回の接続時に表示されるローカルネットワークへのアクセスの許可を求めるダイアログでは「許可」を選ぶ．
 
+## ログの取り出し
+
+録音と送信のログは，アプリの「設定」→「録音と送信のログ」で確認でき，右上のボタンで書き出せる．iPhoneをMacに接続している場合は，次のコマンドでMacに取り出せる．
+
+```bash
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+xcrun devicectl device copy from --device <UDID> --domain-type appDataContainer \
+  --domain-identifier com.yryo1005.EchoMindClient \
+  --source "Library/Application Support/Logs/events.jsonl" --destination events.jsonl
+```
+
 ## 文書およびレポートの保存場所
 
 - 作業指示: `.orders/order_{n:03}.md`
-- 作業レポート: `.reports/report_{n:03}.md`(Step 0は`report_006.md`，Step 1は`report_007.md`，Step 2は`report_009.md`，Step 3は`report_010.md`，Step 4は`report_011.md`，Step 5とBluetooth・ログアウトの対応は`report_012.md`，Step 6は`report_013.md`)．レポートで参照する画像は`.reports/figures/`に置く．
+- 作業レポート: `.reports/report_{n:03}.md`(Step 0は`report_006.md`，Step 1は`report_007.md`，Step 2は`report_009.md`，Step 3は`report_010.md`，Step 4は`report_011.md`，Step 5とBluetooth・ログアウトの対応は`report_012.md`，Step 6は`report_013.md`，ログは`report_014.md`)．レポートで参照する画像は`.reports/figures/`に置く．
 
 ## 必要なAPIキーや設定ファイル
 
